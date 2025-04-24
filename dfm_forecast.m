@@ -1,5 +1,5 @@
 %% dfm_forecast_accuracy.m
-% Author: Moka Kaleji
+% Author: Moka Kaleji • Contact: mohammadkaleji1998@gmail.com
 % Affiliation: Master Thesis in Econometrics, University of Bologna
 % Description:
 %   Evaluates out-of-sample forecast accuracy for the QML Dynamic Factor Model
