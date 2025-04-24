@@ -1,5 +1,5 @@
 %% qml_dfm_estimation.m
-% Author: Moka Kaleji
+% Author: Moka Kaleji • Contact: mohammadkaleji1998@gmail.com
 % Affiliation: Master Thesis in Econometrics, University of Bologna
 % Description:
 %   Implements Quasi-Maximum Likelihood estimation of a Dynamic Factor Model
