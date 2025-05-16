@@ -1,16 +1,41 @@
 %% qml_dfm_estimation.m
 % Author: Moka Kaleji • Contact: mohammadkaleji1998@gmail.com
-% Affiliation: Master Thesis in Econometrics, University of Bologna
+% Affiliation: Master Thesis in Econometrics: 
+% Advancing High-Dimensional Factor Models: Integrating Time-Varying 
+% Loadings, Transition Matrix, and Dynamic Factors
+% University of Bologna
 % Description:
 %   Implements Quasi-Maximum Likelihood estimation of a Dynamic Factor Model
 %   using the EM algorithm as per Barigozzi & Luciani (2021). This script
 %   standardizes the data, invokes the BL_Estimate routine, and returns both
-%   EM- and PCA-based estimates for comparison.
+%   EM- and PCA-based estimates. 
+%   Estimation code is directly from original author: Matteo Luciani.
 
 clear; close all; clc;
 
-%% Dataset Selection
-% Present available periodicity options and capture user choice
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Dataset Selection, Frequency, Training Sample Size, and Standardization
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Purpose:
+% Allow the user to select the dataset periodicity (monthly or quarterly), 
+% load the corresponding data, specify the training sample size, and 
+% standardize the data for numerical stability in model estimation.
+% Explanation:
+% The dynamic factor model requires a multivariate time series dataset. 
+% This section provides a user-friendly interface to choose between pre-processed
+% monthly or quarterly datasets, ensuring flexibility in periodicity. 
+% The training sample size (T_train) is specified to focus on a subset of 
+% the data, which is useful for in-sample estimation and out-of-sample 
+% forecasting. Standardization (zero mean, unit variance) is applied to prevent
+% numerical issues and ensure consistent scaling across variables, a common
+% practice in high-dimensional time series modeling.
+
+% --- Present Available Periodicity Options and Capture User Choice ---
+% Purpose: Display a dialog for the user to select dataset periodicity.
+% Explanation: The listdlg function provides a graphical interface to choose
+% between monthly ('MD1959.xlsx') and quarterly ('QD1959.xlsx') datasets. 
+% The selection is validated to ensure a choice is made, halting execution 
+% if cancelled to prevent undefined behavior.
 options = {'Monthly (MD1959.xlsx)', 'Quarterly (QD1959.xlsx)'};
 [choiceIndex, ok] = listdlg('PromptString','Select dataset:',...
                              'SelectionMode','single',...
@@ -20,66 +45,95 @@ options = {'Monthly (MD1959.xlsx)', 'Quarterly (QD1959.xlsx)'};
 if ~ok
     error('Dataset selection cancelled. Exiting script.');
 end
-
-%% Load Data based on Frequency
+% --- Load Data Based on Frequency ---
+% Purpose: Load the selected dataset from an Excel file and extract the time
+% series data.
+% Explanation: The filepath is constructed based on the user's choice, 
+% pointing to pre-processed datasets stored in a specific directory. The data
+% is read into a table using readtable, then converted to a numeric array. 
+% For quarterly data, the first column (date index) is excluded, as it is not
+% part of the time series. The dimensions T (time points) and N (variables)
+% are extracted for subsequent processing.
 switch choiceIndex
-    case 1  % Monthly frequency
-        filepath = '/Users/moka/Research/Thesis/Live Project/Processed_Data/MD1959.xlsx';
+    case 1                                                                 % Monthly frequency
+        filepath = ['/Users/moka/Research/Thesis/Live Project/' ...
+            'Processed_Data/MD1959.xlsx'];
         raw = readtable(filepath);
-        x = table2array(raw);    % Include all series
+        x = table2array(raw);                                              % Include all series
         T = size(x,1);
-    case 2  % Quarterly frequency
-        filepath = '/Users/moka/Research/Thesis/Live Project/Processed_Data/QD1959.xlsx';
+    case 2                                                                 % Quarterly frequency
+        filepath = ['/Users/moka/Research/Thesis/Live Project/' ...
+            'Processed_Data/QD1959.xlsx'];
         raw = readtable(filepath);
-        x = table2array(raw(:,2:end));  % Drop date index
+        x = table2array(raw(:,2:end));                                     % Drop date index
         T = size(x,1);
     otherwise
         error('Unexpected selection index.');
 end
-[N_obs, N_vars] = size(x);
-
-%% Define Training Sample Size
-defaultTrain = '640';
-prompt = sprintf('Dataset has %d observations. Enter training size (T_train):', T);
+[N_obs, N] = size(x);
+% --- Define Training Sample Size ---
+% Purpose: Prompt the user to specify the number of observations for the 
+% training sample.
+% Explanation: The training sample size (T_train) determines the subset of 
+% data used for model estimation, allowing the remaining observations for 
+% out-of-sample validation or forecasting. A default value of 225 is suggested,
+% but the user can input any integer between 1 and T-1. The input is validated
+% to ensure it is positive and less than the total number of observations, 
+% preventing invalid training periods.
+defaultTrain = '225';
+prompt = sprintf(['Dataset has %d observations. Enter training size ' ...
+    '(T_train):'], T);
 userInput = inputdlg(prompt, 'Training Horizon', [3 100], {defaultTrain});
 if isempty(userInput)
     error('No training size provided. Exiting.');
 end
 T_train = str2double(userInput{1});
 assert(T_train>0 && T_train<T, 'T_train must be integer in (0, %d)', T);
-
-%% Preprocessing: Standardization
-% Center and scale training data to zero mean and unit variance
+% --- Standardization ---
+% Purpose: Standardize the training data to zero mean and unit variance.
+% Explanation: Standardization is critical for numerical stability in 
+% high-dimensional factor models, as variables with different scales can lead
+% to ill-conditioned matrices or biased factor estimates. The training data
+% (first T_train observations) is centered by subtracting the mean and scaled
+% by dividing by the standard deviation, computed across the training sample.
+% This ensures all variables contribute equally to the factor structure and
+% prevents numerical overflow in the EM algorithm.
 x_train = x(1:T_train, :);
 mean_train = mean(x_train);
 std_train  = std(x_train);
 x_train_norm = (x_train - mean_train) ./ std_train;
 
-%% Estimation: EM-based QML Dynamic Factor Model
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Running EM-based QML Dynamic Factor Model 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Call BL_Estimate with user-specified dimensions
 %   r   = number of static factors
 %   q   = number of common shocks
 %   p   = VAR lag order on factors
 %   iter= maximum EM iterations
 %   tresh = convergence threshold for EM
-%   s01 = 1 to standardize within BL_Estimate
 
-r      = 5;    % Number of latent static factors
-q      = 4;    % Number of common shock innovations
-p      = 4;    % VAR lag order for factor dynamics
-iter   = 1000; % Maximum EM iterations
+r      = 3;    % Number of latent static factors
+q      = 3;    % Number of common shock innovations
+p      = 2;    % VAR lag order for factor dynamics
+iter   = 100; % Maximum EM iterations
 tresh  = 1e-6; % EM convergence tolerance
-s01    = 1;    % Standardize data inside algorithm
 
-[EM, PCA] = BL_Estimate(x_train_norm, r, q, p, iter, tresh, s01);
+[EM, PCA] = BL_Estimate(x_train_norm, r, q, p, iter, tresh);
 
-%% Output
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Save Results for Forecasting and Further Analysis 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % EM contains fields: A (factor loadings), Q, H, R, Kalman smoothing outputs, log-likelihood
 % PCA contains principal component estimates for comparison
+save('dfm_estim_results.mat', 'r', 'q', 'EM', 'PCA', ...
+     'x_train', 'x_train_norm', 'mean_train', 'std_train', 'T_train', ...
+     'p', 'N', 'iter', 'tresh');
+disp('DFM estimation complete. Results saved.');
 
-fprintf('QML DFM estimation complete. EM algorithm converged in %d iterations.\n', EM.iterations);
-
-%% BL_Estimate - Core EM Estimator
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Main Function 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Reference:
 %   "Quasi Maximum Likelihood Estimation and Inference of Large Approximate
 %    Dynamic Factor Models via the EM algorithm"
@@ -88,7 +142,7 @@ fprintf('QML DFM estimation complete. EM algorithm converged in %d iterations.\n
 % Usage:
 %   [EM, PCA] = BL_Estimate(x, r, q, p, iter, tresh, s01)
 % Inputs:
-%   x      - standardized data matrix (T x N)\%   r      - number of static factors
+%   x      - standardized data matrix 
 %   q      - number of common shocks
 %   p      - VAR lag order on factors
 %   iter   - EM maximum iterations
@@ -103,19 +157,16 @@ fprintf('QML DFM estimation complete. EM algorithm converged in %d iterations.\n
 % methodological fidelity.
 
 
-function [EM, PCA]=BL_Estimate(x,r,q,p,iter,tresh,s01)
+function [EM, PCA]=BL_Estimate(x,r,q,p,iter,tresh)
 
 
 [T, N] = size(x);
 pr=p*r;
 
-
-if s01==1                                                                   % Determines whether to standardize ...
-    [xx,mx,sx]=ML_Standardize(x);                                           % ... the data prior to estimation ...
-else                                                                        % 
-    xx=x; mx=zeros(1,N); sx=ones(1,N);                                      % ... or not
-end                                                                         %
-MX=repmat(mx,T,1); SX=repmat(sx,T,1);                                       % Useful objects
+                                                                        
+xx=x; mx=zeros(1,N); sx=ones(1,N);                                     
+                                                                        
+MX=repmat(mx,T,1); SX=repmat(sx,T,1);                                       
 
 
 %%% ======================================== %%%
@@ -291,11 +342,27 @@ for jj=1:maxiter
     %%%% ====    Check convergence    ==== %%%%
     %%%% ====                         ==== %%%%
     %%%% ================================= %%%%
-    delta_loglik = abs(loglik - loglik1);                                   % |logL(t) - logL(t-1)|
-    avg_loglik = (abs(loglik) + abs(loglik1) + 10^(-3))/2;                  % avg = (|logL(t)| + |logL(t-1)|)/2
-    if (delta_loglik / avg_loglik) < tresh; break; end                      % convergence if |f(t) - f(t-1)| / avg < threshold
-    if jj>1; if loglik - loglik1<0; break; end; end                         % stop algorithm in case likelihood decrease 
-    loglik1=loglik;                                                         % store log-likelihood    
+fprintf('EM iter %3d: loglik = %.6e\n', jj, loglik);
+
+if jj > 1
+    % 2) Compute relative change
+    delta     = abs(loglik - loglik1);
+    avgLik    = (abs(loglik) + abs(loglik1) + 1e-3)/2;
+    relChange = delta / avgLik;
+    
+    % 3) Print the relative change
+    fprintf(' Loglik rel change at iter %d: % .2e\n', jj, relChange);
+        
+    % 4) Stop if we’ve converged
+    if relChange < tresh
+        fprintf('Converged at iteration %d (rel change = %.2e < %.1e)\n', ...
+            jj, relChange, tresh);
+        break;
+    end
+end
+
+% 6) Prepare for next iteration
+loglik1 = loglik;
 end
 
 if r>q; G = P*sqrt(M); else; G=eye(r); end 
@@ -338,6 +405,7 @@ end
 
 function [xitt,xittm,Ptt,Pttm,loglik]=ML_KalmanFilter2(initx,initV,x,A,C,R,Q,mu,beta)
 
+N=size(x,2);
 T=size(x,1);                                                                % Number of Observations
 r=size(A,1);                                                                % Number of states
 xittm=[initx zeros(r,T)];                                                   % S_{t|t-1}
@@ -367,7 +435,7 @@ for j=1:T
     %%% =============== %%%
     xittm(:,j+1)=mu+A*xitt(:,j);                                            % S_{t|t-1} - States
     Pttm(:,:,j+1)=A*Ptt(:,:,j)*A'+Q;                                        % P_{t|t-1} - Conditional Variance of the State 
-    loglik = loglik + 0.5*(log(det(Hinv))  - e'*Hinv*e);                    % Log Likelihood   
+    loglik = loglik + 0.5*(-N * log(2*pi) - log(det(Hinv))  - e'*Hinv*e);                    % Log Likelihood   
     
 end
 
