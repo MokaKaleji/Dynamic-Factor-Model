@@ -1,8 +1,8 @@
-%% qml_dfm_estimation.m
+%% DFM_estim.m
 % Author: Moka Kaleji • Contact: mohammadkaleji1998@gmail.com
 % Affiliation: Master Thesis in Econometrics: 
 % Advancing High-Dimensional Factor Models: Integrating Time-Varying 
-% Loadings, Transition Matrix, and Dynamic Factors
+% Loadings and Transition Matrix with Dynamic Factors.
 % University of Bologna
 % Description:
 %   Implements Quasi-Maximum Likelihood estimation of a Dynamic Factor Model
@@ -113,11 +113,11 @@ x_train_norm = (x_train - mean_train) ./ std_train;
 %   iter= maximum EM iterations
 %   tresh = convergence threshold for EM
 
-r      = 3;    % Number of latent static factors
-q      = 3;    % Number of common shock innovations
-p      = 2;    % VAR lag order for factor dynamics
+r      = 6;    % Number of latent static factors
+q      = 6;    % Number of common shock innovations
+p      = 4;    % VAR lag order for factor dynamics
 iter   = 100; % Maximum EM iterations
-tresh  = 1e-6; % EM convergence tolerance
+tresh  = 1e-4; % EM convergence tolerance
 
 [EM, PCA] = BL_Estimate(x_train_norm, r, q, p, iter, tresh);
 
