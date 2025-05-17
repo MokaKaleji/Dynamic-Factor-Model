@@ -1,6 +1,14 @@
 # Quasi-Maximum Likelihood Dynamic Factor Model (DFM-QML)
 
-**Author:** Moka Kaleji • Contact: mohammadkaleji1998@gmail.com  
+**Author:** Moka Kaleji • Contact: mohammadkaleji1998@gmail.com
+
+**Affiliation:** Master Thesis in Econometrics: 
+
+Advancing High-Dimensional Factor Models: Integrating Time-Varying 
+Loadings and Transition Matrix with Dynamic Factors.
+
+University of Bologna
+
 **Based on:** Barigozzi & Luciani (2021)
 
 This repository provides scripts to estimate a large-scale dynamic factor model via EM (QML) and to evaluate forecast accuracy.
