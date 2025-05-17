@@ -1,8 +1,8 @@
-%% dfm_forecast.m
+%% DFM_forecasting.m
 % Author: Moka Kaleji • Contact: mohammadkaleji1998@gmail.com
 % Affiliation: Master Thesis in Econometrics: 
 % Advancing High-Dimensional Factor Models: Integrating Time-Varying 
-% Loadings, Transition Matrix, and Dynamic Factors
+% Loadings and Transition Matrix with Dynamic Factors.
 % University of Bologna
 % Description:
 %   Evaluates out-of-sample forecast accuracy for the QML Dynamic Factor Model
@@ -132,7 +132,7 @@ end
 % --- Random Walk Benchmark ---
 % Purpose: Compute MSFE for a naive random walk forecast.
 % Explanation: The random walk forecast assumes y_{t+h} = y_t, using the 
-% last training observation. MSFE ratios (DFTL vs. RW) indicate relative 
+% last training observation. MSFE ratios (DF vs. RW) indicate relative 
 % performance.
 yhat_rw = repmat(x(T_train, :), H, 1);
 squared_errors_rw = (x_test(:, key_vars) - yhat_rw(:, key_vars)).^2;
@@ -142,7 +142,7 @@ MSFE_ratio_rw = MSFE_all ./ MSFE_rw_all;
 % --- AR(1) Benchmark ---
 % Purpose: Compute MSFE for an AR(1) forecast.
 % Explanation: Fits an AR(1) model to each key variable’s training data and
-% forecasts H steps ahead. MSFE ratios (DFTL vs. AR(1)) assess DFTL’s 
+% forecasts H steps ahead. MSFE ratios (DF vs. AR(1)) assess DFTL’s 
 % performance against a simple time series model.
 % Reference: Box, G. E. P., Jenkins, G. M., & Reinsel, G. C. (2008). Time 
 % Series Analysis: Forecasting and Control. Wiley. (For ARIMA modeling).
@@ -159,7 +159,7 @@ MSFE_ar1 = mean(ar1_errors, 1);
 MSFE_ratio_ar1 = MSFE_all ./ MSFE_ar1;
 
 % --- Diebold-Mariano Tests ---
-% Purpose: Test whether DFTL forecasts are significantly more accurate than
+% Purpose: Test whether DF forecasts are significantly more accurate than
 % benchmarks.
 % Explanation: The Diebold-Mariano (DM) test compares squared forecast 
 % errors: DM = mean(d_t) / (std(d_t) / sqrt(n)), where d_t is the 
@@ -168,14 +168,14 @@ MSFE_ratio_ar1 = MSFE_all ./ MSFE_ar1;
 n = H;  % number of out‐of‐sample forecasts
 
 for k = 1:length(key_vars)
-    % 1) DFTL vs Naive RW
+    % 1) DF vs Naive RW
     d_rw = squared_errors(:,k) - squared_errors_rw(:,k);
     dbar = mean(d_rw);
     sd = std(d_rw,1);                                                      % use 1/N normalization for variance
     DM_rw = dbar / (sd/sqrt(n));
     p_rw = 2*(1 - tcdf(abs(DM_rw), n-1));
     
-    % 2) DFTL vs AR(1)
+    % 2) DF vs AR(1)
     d_ar1 = squared_errors(:,k) - ar1_errors(:,k);
     dbar1 = mean(d_ar1);
     sd1 = std(d_ar1,1);
@@ -191,7 +191,7 @@ end
 % --- Forecast-Encompassing Tests ---
 % Purpose: Test whether DFTL forecasts encompass RW or AR(1) forecasts.
 % Explanation: Regresses the forecast error (y - f_DF) on the difference
-% (f_benchmark - f_DF). A non-significant coefficient suggests DFTL 
+% (f_benchmark - f_DF). A non-significant coefficient suggests DF 
 % encompasses the benchmark, containing all relevant information.
 nObs = H;                      % number of forecasts
 dfree = nObs - 2;              % df for t‐tests
@@ -202,7 +202,7 @@ for k = 1:length(key_vars)
     f_rw= yhat_rw(:,key_vars(k));       % RW forecast
     f_a1= y_forecast;      % AR(1) forecast
 
-    % --- Test 1: Does DFTL encompass RW? regress (y - f0) on (f_rw - f0)
+    % --- Test 1: Does DF encompass RW? regress (y - f0) on (f_rw - f0)
     d_rw = y - f0;
     X_rw = [ones(nObs,1), (f_rw - f0)];
     beta_rw = (X_rw'*X_rw)\(X_rw'*d_rw);
@@ -212,7 +212,7 @@ for k = 1:length(key_vars)
     t_rw      = beta_rw(2)/sqrt(Vbeta_rw(2,2));
     p_rw      = 2*(1 - tcdf(abs(t_rw), dfree));
     
-    % --- Test 2: Does DFTL encompass AR(1)? regress (y - f0) on (f_a1 - f0)
+    % --- Test 2: Does DF encompass AR(1)? regress (y - f0) on (f_a1 - f0)
     d_a1 = y - f0;
     X_a1 = [ones(nObs,1), (f_a1 - f0)];
     beta_a1 = (X_a1'*X_a1)\(X_a1'*d_a1);
@@ -276,7 +276,7 @@ end
 % Purpose: Visualize forecasting performance and model diagnostics.
 % Explanation: Creates a multi-panel figure showing MSFE, actual vs. 
 % forecasted values, factor time series, cross-correlations, and MSFE 
-% ratios, aiding interpretation of DFTL performance and factor dynamics.
+% ratios, aiding interpretation of DF performance and factor dynamics.
 
 % --- Cross-Correlation of Factors ---
 % Purpose: Identify the most correlated pair of factors.
