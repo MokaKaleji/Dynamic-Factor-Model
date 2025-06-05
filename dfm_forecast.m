@@ -2,7 +2,7 @@
 % Author: Moka Kaleji • Contact: mohammadkaleji1998@gmail.com
 % Affiliation: Master Thesis in Econometrics: 
 % Advancing High-Dimensional Factor Models: Integrating Time-Varying 
-% Loadings and Transition Matrix with Dynamic Factors.
+% Parameters Matrix with Dynamic Factors.
 % University of Bologna
 % Description:
 %   Evaluates out-of-sample forecast accuracy for the QML Dynamic Factor Model
@@ -19,7 +19,7 @@ clear; close all; clc;
 % corresponding data.
 % Explanation: Presents a dialog for selecting between monthly (MD1959.xlsx)
 % or quarterly (QD1959.xlsx) datasets, loads the chosen data, and defines 
-% key variables (GDP, Unemployment, Inflation, 1-Year Treasury - 3-Month Treasury)
+% key variables (GDP, Unemployment, Inflation)
 % for forecasting evaluation. The datasets are high-dimensional time series
 % used in macroeconomic forecasting, with specific indices for key variables.
 % References:
@@ -48,18 +48,18 @@ switch choiceIndex
         T = 790;
         tableData = readtable(filepath);
         x = table2array(tableData);
-        key_vars = [1, 24, 105, 89];                                       % Indices for key variables
+        key_vars = [1, 24, 105];                                       % Indices for key variables
     case 2
         filepath = ['/Users/moka/Research/Thesis/Live Project/' ...
             'Processed_Data/QD1959.xlsx'];
         T = 264;
         tableData = readtable(filepath);
         x = table2array(tableData(:,2:end));                               % Exclude ate column
-        key_vars = [1, 58, 116, 147];                                      % Indices for key variables
+        key_vars = [1, 58, 116];                                      % Indices for key variables
     otherwise
         error('Unexpected selection index.');
 end
-var_names = {'GDP', 'Unemployment', 'Inflation', '1_Y Treasury - 3_M Treasury'};
+var_names = {'GDP', 'Unemployment', 'Inflation'};
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Load DFTL Estimation Outputs 
@@ -223,9 +223,9 @@ for k = 1:length(key_vars)
     p_a1      = 2*(1 - tcdf(abs(t_a1), dfree));
 
     fprintf('\nEncompassing tests for %s:\n', var_names{k});
-    fprintf(' DFTL vs RW:  \tβ̂=%.3f, t=%.2f, p=%.3f\n', beta_rw(2), t_rw, ...
+    fprintf(' QML_DFM vs RW:  \tβ̂=%.3f, t=%.2f, p=%.3f\n', beta_rw(2), t_rw, ...
         p_rw);
-    fprintf(' DFTL vs AR1: \tβ̂=%.3f, t=%.2f, p=%.3f\n', beta_a1(2), t_a1, ...
+    fprintf(' QML_DFM vs AR1: \tβ̂=%.3f, t=%.2f, p=%.3f\n', beta_a1(2), t_a1, ...
         p_a1);
 end
 
@@ -235,7 +235,7 @@ end
 % autocorrelations up to maxLags, testing the null hypothesis of no 
 % autocorrelation against the alternative of serial correlation.
 if H > 1
-maxLags = ceil(H/3);                                                       % how many lags to test
+maxLags = 3;                                                       % how many lags to test
 alpha   = 0.05;                                                            % significance level
 
 % Compute residuals matrix (H×4)
@@ -266,10 +266,7 @@ for k = 1:length(key_vars)
 end
 else
 end
-% Helper for printing
-function s = ternary(cond, a, b)
-    if cond, s = a; else s = b; end
-end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Visualization 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -290,41 +287,53 @@ lower_tri = tril(corr_matrix, -1);
 disp(['Most correlated factors: ', num2str(i), ' & ', num2str(j)]);
 max_lags = 5;
 [cross_corr, lags] = xcorr(EM.F(:,i), EM.F(:,j), max_lags, 'coeff');
-figure('Position', [100 100 1200 800]);
 
 % Plot MSFE over horizons
-subplot(3,4,1);
+fig1 = figure;
 plot(1:H, MSFE_horizon, '-o', 'LineWidth', 1.5);
 title('MSFE per Horizon'); xlabel('Horizon'); ylabel('MSFE'); grid on;
+exportgraphics(fig1, 'MSFE_by_Horizon.pdf', 'ContentType', 'vector', 'Resolution', 300);
 
 % Actual vs Forecast with CI for each key variable
-for idx = 1:4
-    subplot(3,4,1+idx);
+for idx = 1:3
+    fig = figure;
     plot(1:T_train, x(1:T_train, key_vars(idx)), 'b-', 'DisplayName', ...
         'Train Actual'); hold on;
+    plot(1:T_train, EM.chi(1:T_train, key_vars(idx)), 'r--', 'DisplayName', ...
+        'Estimate'); hold on;
     plot(T_train+1:T_train+H, x_test(:, key_vars(idx)), 'k-', 'DisplayName', ...
         'Test Actual');
-    plot(T_train+1:T_train+H, EM_Forecast.yhat(:, key_vars(idx)), 'r--', ...
+    plot(T_train+1:T_train+H, EM_Forecast.yhat(:, key_vars(idx)), 'g-', ...
         'DisplayName', 'Forecast');
     hold off; title(var_names{idx});
     xlabel('Time'); ylabel('Value'); grid on;
-    if idx==1, legend('Location', 'Best'); end
+    % Formatting
+    title(var_names{idx});
+    xlabel('Time'); ylabel('Value'); grid on;
+    legend('Location', 'Best');
+
+    % Save the figure as high-res PDF
+    filename = sprintf('Forecast_Var_%s.pdf', var_names{idx});
+    exportgraphics(fig, filename, 'ContentType', 'vector', 'Resolution', 300);
+
+    % Close the figure to avoid clutter
+    close(fig);
 end
 
 % Histogram of MSFE across variables
-subplot(3,4,6);
+fig6 = figure;
 histogram(MSFE_all, 10);
 title('MSFE Distribution'); xlabel('MSFE'); ylabel('Frequency'); grid on;
 
 % Time series of latent factors
-subplot(3,4,7);
+fig7 = figure;
 plot(EM.F, 'LineWidth', 1.5);
 title('Latent Factors over Time'); xlabel('Time'); ylabel('Factor Value');
 legend(arrayfun(@(x) sprintf('F%d', x), 1:r, 'UniformOutput', false)); 
 grid on;
 
 % Cross-correlogram of most correlated pair
-subplot(3,4,8);
+fig8 = figure;
 stem(lags, cross_corr, 'LineWidth', 1.5);
 title(['Cross-Correlogram: Factor ' num2str(i) ' vs ' num2str(j)]);
 xlabel('Lag'); ylabel('Corr'); grid on;
@@ -332,20 +341,19 @@ xlabel('Lag'); ylabel('Corr'); grid on;
 sgtitle(sprintf('QML_DFM Forecasting: p=%d', p));
 
 % 6. MSFE Ratio Bar Chart
-subplot(3,4,9);
+fig2 = figure;
 bar([MSFE_ratio_rw; MSFE_ratio_ar1]');
-title('MSFE Ratios: DFTL vs RW and AR(1)');
+title('MSFE Ratios: QML_DFM vs RW and AR(1)');
 xticklabels(var_names); ylabel('Ratio');
-legend('DFTL / RW', 'DFTL / AR(1)', 'Location', 'Best'); grid on;
+legend('QML_DFM / RW', 'QML_DFM / AR(1)', 'Location', 'Best'); grid on;
 
-sgtitle(sprintf('QML_DFM Forecasting Performance: p=%d', p));
+exportgraphics(fig2, 'MSFE Ratio.pdf', 'ContentType', 'vector', 'Resolution', 300);
 
 % MSFE per Horizon for Key Variables (Individual)
-subplot(3,4,10);
+fig9 = figure;
 plot(1:H, squared_errors(:,1), '-o', 'LineWidth', 1.3); hold on;
 plot(1:H, squared_errors(:,2), '-s', 'LineWidth', 1.3);
 plot(1:H, squared_errors(:,3), '-d', 'LineWidth', 1.3);
-plot(1:H, squared_errors(:,4), '-^', 'LineWidth', 1.3);
 hold off;
 title('MSFE per Horizon for Key Variables');
 xlabel('Horizon'); ylabel('Squared Error');
