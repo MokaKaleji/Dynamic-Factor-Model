@@ -2,7 +2,7 @@
 % Author: Moka Kaleji • Contact: mohammadkaleji1998@gmail.com
 % Affiliation: Master Thesis in Econometrics: 
 % Advancing High-Dimensional Factor Models: Integrating Time-Varying 
-% Loadings and Transition Matrix with Dynamic Factors.
+% Parameters with Dynamic Factors.
 % University of Bologna
 % Description:
 %   Implements Quasi-Maximum Likelihood estimation of a Dynamic Factor Model
@@ -113,13 +113,13 @@ x_train_norm = (x_train - mean_train) ./ std_train;
 %   iter= maximum EM iterations
 %   tresh = convergence threshold for EM
 
-r      = 6;    % Number of latent static factors
-q      = 6;    % Number of common shock innovations
-p      = 4;    % VAR lag order for factor dynamics
-iter   = 100; % Maximum EM iterations
-tresh  = 1e-4; % EM convergence tolerance
+r      = 1;    % Number of latent static factors
+q      = 1;    % Number of common shock innovations
+p      = 1;    % VAR lag order for factor dynamics
+iter   = 1000; % Maximum EM iterations
+tresh  = 1e-6; % EM convergence tolerance
 
-[EM, PCA] = BL_Estimate(x_train_norm, r, q, p, iter, tresh);
+[EM, PCA] = BL_Estimate(x_train_norm, r, q, p, mean_train, std_train, iter, tresh);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Save Results for Forecasting and Further Analysis 
@@ -157,17 +157,14 @@ disp('DFM estimation complete. Results saved.');
 % methodological fidelity.
 
 
-function [EM, PCA]=BL_Estimate(x,r,q,p,iter,tresh)
+function [EM, PCA]=BL_Estimate(x,r,q,p, MX, SX, iter,tresh)
 
 
 [T, N] = size(x);
 pr=p*r;
 
                                                                         
-xx=x; mx=zeros(1,N); sx=ones(1,N);                                     
-                                                                        
-MX=repmat(mx,T,1); SX=repmat(sx,T,1);                                       
-
+xx=x;                                                                          
 
 %%% ======================================== %%%
 %%%  Estimate factors and loadings with PCA  %%%
@@ -187,7 +184,7 @@ xi0=x-chi0;                                                                 % id
 %%% ==================================== %%%
 AL0b=cat(3,AL0,zeros(r,r));                                                 % add one lag to avoid computing PtTm
 [F0,lambda0,A0,P0,Q0,R0]=ML_SS_DFM_I0(f0,L0,AL0b,G0,e0,N,p+1,r);            % State-Space representation
-[xitT,PtT1,~,~,~,~,A1,L1,R1,Q1,G1]=...                                      % EM algorithm
+[xitT,PtT1,~,~,~,~,A1,L1,R1,Q1,G1,loglik]=...                                      % EM algorithm
     ML_efactorML4c3(xx,F0,P0,A0,lambda0,R0,Q0,r,q,p,iter,tresh,0);          % ------------
 PtT1=PtT1(1:pr,1:pr,:);A1=A1(1:pr,1:pr); Q1=Q1(1:pr,1:pr);                  % Eliminate the extra lag
 f1=xitT(:,1:r); L1=L1(:,1:pr);                                              % factors
@@ -218,6 +215,7 @@ EM.A=A1;
 EM.Q=Q1;
 EM.PtT=PtT1;
 EM.xitT=xitT;
+EM.logL=loglik;
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -261,7 +259,7 @@ end
 % 
 
 
-function [xitT,PtT,xitt,xittm,Ptt,Pttm,A,Lambda,R,Q,G]=...
+function [xitT,PtT,xitt,xittm,Ptt,Pttm,A,Lambda,R,Q,G,loglik]=...
     ML_efactorML4c3(y,F0,P0,A,Lambda,R,Q,r,q,p,maxiter,tresh,cc)
 
 
@@ -277,6 +275,7 @@ pr=p*r; pr1=(p+1)*r;
 F00=xitT(1,:)'; P00=eye(pr1);                                               % initial conditions  
 F=xitT(:,1:r);                                                              % factors
 loglik1=loglik;                                                             % likelihood
+decrease_count=0;
 
 for jj=1:maxiter         
     
@@ -359,8 +358,20 @@ if jj > 1
             jj, relChange, tresh);
         break;
     end
-end
 
+            % did it decrease this iteration?
+                if loglik < loglik1
+                    decrease_count = decrease_count + 1;
+                    fprintf('Iteration %d: logL Decreased (count = %d)\n', jj, ...
+                        decrease_count);
+                    if decrease_count == 2
+                        fprintf(['Log-likelihood Decreased twice: stopping at ' ...
+                            'iter %d\n'], jj);
+                        break;
+                    end
+                end
+
+end     
 % 6) Prepare for next iteration
 loglik1 = loglik;
 end
@@ -435,7 +446,7 @@ for j=1:T
     %%% =============== %%%
     xittm(:,j+1)=mu+A*xitt(:,j);                                            % S_{t|t-1} - States
     Pttm(:,:,j+1)=A*Ptt(:,:,j)*A'+Q;                                        % P_{t|t-1} - Conditional Variance of the State 
-    loglik = loglik + 0.5*(-N * log(2*pi) - log(det(Hinv))  - e'*Hinv*e);                    % Log Likelihood   
+    loglik = loglik + 0.5*(log(det(Hinv))  - e'*Hinv*e);                    % Log Likelihood   
     
 end
 
